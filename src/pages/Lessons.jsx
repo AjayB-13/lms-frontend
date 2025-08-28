@@ -267,8 +267,8 @@ export default function Lessons() {
               {showReviewBtn && !reviewReady && (
                 <div className="text-sm text-gray-500 mt-1">
                   Review is unlocked after the class is{" "}
-                  <span className="font-medium">completed by tutor and student</span> 
-                  <span className="font-medium">paid</span>.
+                  <span className="font-medium">completed by tutor and student get</span> 
+                  <span className="font-medium"> paid</span>.
                 </div>
               )}
             </div>
