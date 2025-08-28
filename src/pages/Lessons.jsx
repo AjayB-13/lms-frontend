@@ -48,7 +48,7 @@ export default function Lessons() {
     const url = new URL(window.location.href);
     let sessionId = url.searchParams.get("session_id");
 
-    // 🔹 Fallback to the id we saved before redirect
+    // Fallback to the id we saved before redirect
     if (!sessionId) {
       sessionId = sessionStorage.getItem("lastCheckoutSessionId");
     }
@@ -71,7 +71,7 @@ export default function Lessons() {
         setMessage(`Payment status: ${result?.status || "pending"}`);
       }
 
-      // Clean the URL only if it actually had session_id
+      // Clean URL only if it actually had session_id
       if (url.searchParams.has("session_id")) {
         url.searchParams.delete("session_id");
         window.history.replaceState({}, "", url.toString());
@@ -149,7 +149,7 @@ export default function Lessons() {
         body: { lessonId },
       });
 
-      // 🔹 Save the session id so we can reconcile even if URL param is missing
+      // Save the session id so we can reconcile even if URL param is missing
       if (id) sessionStorage.setItem("lastCheckoutSessionId", id);
 
       if (url) {
@@ -166,6 +166,18 @@ export default function Lessons() {
     }
   }
 
+  // When clicking the disabled watermark review
+  function explainWhyDisabled(l) {
+    const parts = [];
+    if (l.status !== "completed") parts.push("complete the meeting");
+    if (l.paymentStatus !== "paid") parts.push("pay for the class");
+    const msg =
+      parts.length > 0
+        ? `Please ${parts.join(" and ")} to leave a review.`
+        : "You can leave a review now.";
+    alert(msg);
+  }
+
   return (
     <div>
       <h1 className="text-2xl font-bold mb-2">My Lessons</h1>
@@ -174,80 +186,103 @@ export default function Lessons() {
       {error && <div className="mb-2 text-red-600">{error}</div>}
 
       <div className="grid gap-3">
-        {lessons.map((l) => (
-          <div key={l._id} className="bg-white p-4 rounded shadow">
-            <div className="font-semibold">{l.subject || "Lesson"}</div>
-            <div>
-              {new Date(l.startTime).toLocaleString()} –{" "}
-              {new Date(l.endTime).toLocaleTimeString()}
-            </div>
+        {lessons.map((l) => {
+          const showReviewBtn = !l.reviewed; // show button until they’ve reviewed
+          const reviewReady =
+            l.status === "completed" && l.paymentStatus === "paid";
 
-            <div>
-              Status: {l.status} · Payment: {l.paymentStatus} · Price:{" "}
-              {formatINR(l.price || 0)}
-            </div>
+          return (
+            <div key={l._id} className="bg-white p-4 rounded shadow">
+              <div className="font-semibold">{l.subject || "Lesson"}</div>
+              <div>
+                {new Date(l.startTime).toLocaleString()} —{" "}
+                {new Date(l.endTime).toLocaleTimeString()}
+              </div>
 
-            <div className="mt-2 flex gap-2 flex-wrap">
-              {/* Join meeting (JaaS JWT) */}
-              <JoinMeetingButton lessonId={l._id} />
+              <div>
+                Status: {l.status} · Payment: {l.paymentStatus} · Price:{" "}
+                {formatINR(l.price || 0)}
+              </div>
 
-              {/* Leave review: only for completed & paid & not yet reviewed */}
-              {l.status === "completed" &&
-                l.paymentStatus === "paid" &&
-                !l.reviewed && (
+              <div className="mt-2 flex gap-2 flex-wrap items-center">
+                {/* Join meeting (JaaS JWT) */}
+                <JoinMeetingButton lessonId={l._id} />
+
+                {/* Review button is always visible (watermarked if not allowed yet) */}
+                {showReviewBtn && (
                   <button
-                    className="px-3 py-1 rounded bg-emerald-600 text-white"
-                    onClick={() => setReviewLesson(l)}
+                    title={
+                      reviewReady
+                        ? "Leave a review"
+                        : "Complete the meeting and pay to leave a review"
+                    }
+                    aria-disabled={!reviewReady}
+                    onClick={() =>
+                      reviewReady ? setReviewLesson(l) : explainWhyDisabled(l)
+                    }
+                    className={
+                      reviewReady
+                        ? "px-3 py-1 rounded bg-emerald-600 text-white"
+                        : // watermarked style
+                          "px-3 py-1 rounded bg-emerald-600/40 text-white/70 cursor-not-allowed"
+                    }
                   >
-                    Review this lesson
+                    {reviewReady ? "Review this lesson" : "Review (locked)"}
                   </button>
                 )}
 
-              {/* Manage */}
-              {l.status !== "canceled" && (
-                <>
-                  <button
-                    className="px-3 py-1 rounded bg-gray-200"
-                    onClick={() => rescheduleLesson(l._id)}
-                    disabled={loading}
-                  >
-                    Reschedule
-                  </button>
-                  <button
-                    className="px-3 py-1 rounded bg-gray-200"
-                    onClick={() => cancelLesson(l._id)}
-                    disabled={loading}
-                  >
-                    Cancel
-                  </button>
-                </>
-              )}
+                {/* Manage */}
+                {l.status !== "canceled" && (
+                  <>
+                    <button
+                      className="px-3 py-1 rounded bg-gray-200"
+                      onClick={() => rescheduleLesson(l._id)}
+                      disabled={loading}
+                    >
+                      Reschedule
+                    </button>
+                    <button
+                      className="px-3 py-1 rounded bg-gray-200"
+                      onClick={() => cancelLesson(l._id)}
+                      disabled={loading}
+                    >
+                      Cancel
+                    </button>
+                  </>
+                )}
 
-              {/* Pay now */}
-              {l.paymentStatus !== "paid" && l.status === "scheduled" && (
-                <button
-                  className="px-3 py-1 rounded bg-blue-600 text-white"
-                  onClick={() => payNow(l._id)}
-                  disabled={loading}
-                >
-                  Pay now (Card)
-                </button>
+                {/* Pay now */}
+                {l.paymentStatus !== "paid" && l.status === "scheduled" && (
+                  <button
+                    className="px-3 py-1 rounded bg-blue-600 text-white"
+                    onClick={() => payNow(l._id)}
+                    disabled={loading}
+                  >
+                    Pay now (Card)
+                  </button>
+                )}
+              </div>
+
+              {/* Small helper text under the disabled review button */}
+              {showReviewBtn && !reviewReady && (
+                <div className="text-sm text-gray-500 mt-1">
+                  Review is unlocked after the class is{" "}
+                  <span className="font-medium">completed by tutor and student</span> 
+                  <span className="font-medium">paid</span>.
+                </div>
               )}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Review modal */}
       {reviewLesson && (
-        <>
-          {/* refresh after saving review */}
-          <LeaveReviewModal
-            lesson={reviewLesson}
-            onSaved={load}
-            onClose={() => setReviewLesson(null)}
-          />
-        </>
+        <LeaveReviewModal
+          lesson={reviewLesson}
+          onSaved={load}
+          onClose={() => setReviewLesson(null)}
+        />
       )}
     </div>
   );
